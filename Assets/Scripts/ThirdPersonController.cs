@@ -2,6 +2,7 @@ using Unity.Cinemachine;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using Sirenix.OdinInspector;
+using System.Collections;
 
 public class ThirdPersonController : MonoBehaviour
 {
@@ -27,13 +28,15 @@ public class ThirdPersonController : MonoBehaviour
     public float pushForce = 4;
 
     [FoldoutGroup("Controller/Dash")]
-    private bool IsDashing;
+    public bool IsDashing;
     [FoldoutGroup("Controller/Dash")]
     public float dashForce;
     [FoldoutGroup("Controller/Dash")]
     public float dashDuration = 0.2f;
     [FoldoutGroup("Controller/Dash")]
     private float dashTimer;
+    [FoldoutGroup("Controller/Dash")]
+    private float dashCooldown = 8f;
 
     [SerializeField] private Vector2 moveInput;
 
@@ -154,12 +157,20 @@ public class ThirdPersonController : MonoBehaviour
     private void OnDash(InputAction.CallbackContext context)
     {
         IsDashing = true;
-        dashTimer = dashDuration;
+        StartCoroutine(PerformDash());
+    }
+
+    IEnumerator PerformDash()
+    {
+        yield return new WaitForSeconds(dashCooldown);
+        Debug.Log("b");
+        IsDashing = false;
+        Debug.Log("a");
     }
 
     public void EnableWallRun()
     {
-        //->mejor castearlo desde una referenia en los piez
+        //->mejor castearlo desde una referenia en los pies
         Physics.Raycast(transform.position, transform.right, out RaycastHit hitRight, rayLenght);
 
         if(hitRight.collider != null &&  hitRight.collider.gameObject.tag == "Wall")
