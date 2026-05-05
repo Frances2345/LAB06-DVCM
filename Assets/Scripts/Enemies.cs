@@ -6,26 +6,37 @@ public class Enemies : MonoBehaviour
 
     private NavMeshAgent agent;
     private Transform player;
+    public float attack = 15;
 
 
     void Start()
     {
-        agent = GetComponent<NavMeshAgent>();
         player = GameObject.FindGameObjectWithTag("Player").transform;
-
-
-        agent.speed = Random.Range(3f, 7f);
-        agent.acceleration = Random.Range(6f, 12f);
-        agent.angularSpeed = Random.Range(100f, 300f);
-        agent.stoppingDistance =  Random.Range(1f, 2.5f);
-        agent.avoidancePriority = Random.Range(0, 99);
+        agent = GetComponent<NavMeshAgent>();
     }
 
     void Update()
     {
-        if (player != null)
+        if (player != null && agent.enabled)
         {
             agent.SetDestination(player.position);
+        }
+    }
+
+    private void OnCollisionEnter(Collision collision)
+    {
+
+
+        if (collision.gameObject.CompareTag("Player"))
+        {
+            PlayerController pScript = collision.gameObject.GetComponent<PlayerController>();
+
+            if (pScript != null)
+            {
+                pScript.TakeDamage(attack);
+            }
+
+            Destroy(gameObject);
         }
     }
 }
