@@ -1,5 +1,5 @@
-using Sirenix.OdinInspector;
 using System.Collections;
+using TMPro;
 using Unity.Cinemachine;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -12,11 +12,12 @@ public class ThirdPersonController : MonoBehaviour
     private CharacterController controller;
     public CinemachineCamera characterCamera;
     public Animator animator;
-    [SerializeField] private CinemachineImpulseSource impulseSource;
 
     [Header("Stats")]
     public float health = 100;
-    public bool isDead;
+    public int currentHealth;
+    [SerializeField] private TextMeshProUGUI healthText;
+    public bool isDead = false;
 
     [Header ("Movement")]
     public float moveSpeed = 5f;
@@ -35,13 +36,22 @@ public class ThirdPersonController : MonoBehaviour
 
     [Header ("WallRun")]
     public float rayLenght = 1.2f;
+    public float cameraTilt = 15;
+    private bool isWallRunning;
+
     public float wallJumpUpForce = 9f;
     public float wallJumpSideForce = 12f;
     public float wallJumpCooldown = 0.4f;
     private bool canWallJump = true;
-    private bool isWallRunning;
+
     private Vector3 wallNormal;
+    private Vector3 impactPoint;
     private Vector3 crossResult;
+    private Vector3 wallJumpVelocity;
+
+    [Header ("Impulse")]
+    [SerializeField] private CinemachineImpulseSource hitSource;
+    [SerializeField] private CinemachineImpulseSource source;
 
     [SerializeField] private Vector2 moveInput;
 
@@ -50,11 +60,7 @@ public class ThirdPersonController : MonoBehaviour
         inputs = new();
         controller = GetComponent<CharacterController>();
 
-        if (impulseSource == null)
-        {
-            impulseSource = GetComponent<CinemachineImpulseSource>();
-        }
-
+        Cursor.visible = false;
         Cursor.lockState = CursorLockMode.Locked;
 
     }
@@ -65,6 +71,12 @@ public class ThirdPersonController : MonoBehaviour
         inputs.Player.Move.canceled += ctx => moveInput = Vector2.zero;
         inputs.Player.Jump.performed += OnJump;
         inputs.Player.Sprint.performed += OnDash;
+    }
+
+    private void Start()
+    {
+        currentHealth = (int)health;
+        UpdateHealthUI();
     }
 
     void Update()
@@ -88,67 +100,97 @@ public class ThirdPersonController : MonoBehaviour
             transform.rotation = Quaternion.Slerp(transform.rotation, targetQuaternion, rotationSpeed * Time.deltaTime);
         }
 
-        Vector3 moveDir = (cameraForwardDir * moveInput.y + transform.right * moveInput.x) * moveSpeed;
+        Vector3 moveDir;
+        if (!isWallRunning)
+        {
+            moveDir = (cameraForwardDir * moveInput.y + transform.right * moveInput.x) * moveSpeed;
+        }
+        else
+        {
+            moveDir = (crossResult * moveInput.y) * moveSpeed;
+        }
 
-        if (isWallRunning)
+        if (isWallRunning && canWallJump)
         {
             verticalVelocity = 0;
         }
         else
         {
             verticalVelocity += Physics.gravity.y * Time.deltaTime;
-
             if (controller.isGrounded && verticalVelocity < 0)
-            {
                 verticalVelocity = -2f;
-            }
         }
 
         moveDir.y = verticalVelocity;
+        moveDir += wallJumpVelocity;
 
         if (IsDashing)
         {
             moveDir = transform.forward * dashForce * (dashTimer / dashDuration);
-
             dashTimer -= Time.deltaTime;
-
-            if (dashTimer <= 0)
-                IsDashing = false;
+            if (dashTimer <= 0) IsDashing = false;
         }
         controller.Move(moveDir * Time.deltaTime);
-
+        wallJumpVelocity = Vector3.Lerp(wallJumpVelocity, Vector3.zero, Time.deltaTime * 5f);
     }
 
     private void OnJump(InputAction.CallbackContext context)
     {
-        if(isDead) return;
+        if (isWallRunning && canWallJump)
+        {
+            PerformWallJump();
+            return;
+        }
 
         if (controller.isGrounded)
         {
             verticalVelocity = jumpForce;
-            animator.SetTrigger("Jump");
-
-            impulseSource.GenerateImpulse(Vector3.up * 0.2f);
-        }
-        else if (isWallRunning && canWallJump)
-        {
-            StartCoroutine(WallJumpRoutine());
+            if (animator != null) animator.SetTrigger("Jump");
+            if (source != null) source.GenerateImpulse();
         }
     }
 
-    IEnumerator WallJumpRoutine()
+    private void PerformWallJump()
     {
         canWallJump = false;
         isWallRunning = false;
         verticalVelocity = wallJumpUpForce;
 
-        Vector3 jumpForceVector = wallNormal * wallJumpSideForce;
-        controller.Move(jumpForceVector * Time.deltaTime);
+        Vector3 jumpDir = wallNormal + Vector3.up;
+        wallJumpVelocity = jumpDir.normalized * wallJumpSideForce;
 
-        impulseSource.GenerateImpulse(wallNormal * 0.5f);
+        if (source != null)
+        {
+            source.GenerateImpulse();
+        }
 
+        StartCoroutine(WallJumpCooldown());
+    }
+
+    IEnumerator WallJumpCooldown()
+    {
         yield return new WaitForSeconds(wallJumpCooldown);
         canWallJump = true;
+    }
+
+    private void OnDash(InputAction.CallbackContext context)
+    {
+        if (canDash && !isDead)
+        {
+            StartCoroutine(DashRoutine());
+        }
+    }
+
+    IEnumerator DashRoutine()
+    {
+        canDash = false;
+        IsDashing = true;
+        dashTimer = dashDuration;
+
+        yield return new WaitForSeconds(dashDuration);
+        IsDashing = false;
+        yield return new WaitForSeconds(dashCooldown);
+        canDash = true;
     }
 
     private void CheckWallRun()
@@ -161,22 +203,39 @@ public class ThirdPersonController : MonoBehaviour
         {
             isWallRunning = true;
             wallNormal = hit.normal;
+            impactPoint = hit.point;
+
+            characterCamera.Lens.Dutch = hitRight ? cameraTilt : -cameraTilt;
+            crossResult = Vector3.Cross(wallNormal, transform.up);
+
+            if (Vector3.Dot(crossResult, transform.forward) < 0)
+            {
+                crossResult *= -1;
+            }
         }
         else
         {
             isWallRunning = false;
+            characterCamera.Lens.Dutch = 0;
         }
     }
 
-    public void TakeDamage(float amount)
+    public void TakeDamage(int damage)
     {
         if (isDead) return;
 
-        health -= amount;
+        currentHealth -= damage;
+        UpdateHealthUI();
 
-        impulseSource.GenerateImpulse(Random.insideUnitSphere * 0.8f);
+        if (hitSource != null) hitSource.GenerateImpulse();
 
-        if (health <= 0) Die();
+        if (currentHealth <= 0) Die();
+    }
+
+    private void UpdateHealthUI()
+    {
+        if (healthText != null)
+            healthText.text = "HP: " + currentHealth.ToString();
     }
 
     private void Die()
@@ -193,35 +252,16 @@ public class ThirdPersonController : MonoBehaviour
 
     private void OnControllerColliderHit(ControllerColliderHit hit)
     {
-        Vector3 pushDir = (hit.transform.position - transform.position).normalized;
-
         if (hit.rigidbody != null && hit.rigidbody.linearVelocity == Vector3.zero)
         {
+            Vector3 pushDir = (hit.transform.position - transform.position).normalized;
+            pushDir.y = 0;
+
             print(hit.gameObject.name);
             hit.rigidbody.AddForce(pushDir * pushForce, ForceMode.Impulse);
         }
     }
 
-    private void OnDash(InputAction.CallbackContext context)
-    {
-        if (canDash && !isDead)
-        {
-            StartCoroutine(PerformDash());
-        }
-    }
-
-    IEnumerator PerformDash()
-    {
-        canDash = false;
-        IsDashing = true;
-        dashTimer = dashDuration;
-
-        yield return new WaitForSeconds(dashDuration);
-        IsDashing = false;
-        yield return new WaitForSeconds(dashCooldown);
-        canDash = true;
-
-    }
     private void OnDrawGizmos()
     {
         Gizmos.color = Color.purple;
