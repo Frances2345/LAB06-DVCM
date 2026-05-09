@@ -19,7 +19,7 @@ public class Enemies : MonoBehaviour
 
     void Update()
     {
-        if (player != null && !agent.isStopped)
+        if (player != null && agent != null && agent.isOnNavMesh)
         {
             agent.SetDestination(player.position);
         }

@@ -13,6 +13,9 @@ public class ThirdPersonController : MonoBehaviour
     public CinemachineCamera characterCamera;
     public Animator animator;
 
+    //PANEL PARA MORIR
+    public GameObject gameOverPanel;
+
     [Header("Stats")]
     public float health = 100;
     public int currentHealth;
@@ -211,9 +214,15 @@ public class ThirdPersonController : MonoBehaviour
     {
         RaycastHit hit;
         bool hitRight = Physics.Raycast(transform.position, transform.right, out hit, rayLenght);
-        bool hitLeft = Physics.Raycast(transform.position, -transform.right, out hit, rayLenght);
+        bool isRightSide = hitRight;
 
-        if ((hitRight || hitLeft) && hit.collider != null && hit.collider.CompareTag("Wall") && !controller.isGrounded)
+        if (!hitRight)
+        {
+            bool hitLeft = Physics.Raycast(transform.position, -transform.right, out hit, rayLenght);
+            isRightSide = false;
+        }
+
+        if (hit.collider != null && hit.collider.CompareTag("Wall") && !controller.isGrounded)
         {
             isWallRunning = true;
             wallNormal = hit.normal;
@@ -221,23 +230,16 @@ public class ThirdPersonController : MonoBehaviour
 
             if (characterCamera != null)
             {
-                characterCamera.Lens.Dutch = hitRight ? cameraTilt : -cameraTilt;
+                characterCamera.Lens.Dutch = isRightSide ? cameraTilt : -cameraTilt;
             }
 
             crossResult = Vector3.Cross(wallNormal, transform.up);
-
-            if (Vector3.Dot(crossResult, transform.forward) < 0)
-            {
-                crossResult *= -1;
-            }
+            if (Vector3.Dot(crossResult, transform.forward) < 0) crossResult *= -1;
         }
         else
         {
             isWallRunning = false;
-            if (characterCamera != null)
-            {
-                characterCamera.Lens.Dutch = 0;
-            }
+            if (characterCamera != null) characterCamera.Lens.Dutch = 0;
         }
     }
 
@@ -263,11 +265,17 @@ public class ThirdPersonController : MonoBehaviour
     {
         isDead = true;
         health = 0;
-
-        if (animator != null) animator.SetBool("Grounded", false);
+        currentHealth = 0;
+        UpdateHealthUI();
 
         inputs.Disable();
-        Invoke("RestartLevel", 2f);
+        if (gameOverPanel != null)
+        {
+            gameOverPanel.SetActive(true);
+        }
+
+        verticalVelocity = 0;
+        Invoke("RestartLevel", 2.0f);
     }
 
     private void RestartLevel() => SceneManager.LoadScene(SceneManager.GetActiveScene().name);

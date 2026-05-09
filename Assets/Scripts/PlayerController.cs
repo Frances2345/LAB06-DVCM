@@ -10,6 +10,9 @@ public class PlayerController : MonoBehaviour
     private CharacterController controller;
     public CinemachineImpulseSource impulseSource;
 
+    //PANEL PARA MORIR
+    public GameObject gameOverPanel;
+
     public float moveSpeed = 5f;
     public float rotationSpeed = 200f;
     public float verticalVelocity = 0;
@@ -200,6 +203,13 @@ public class PlayerController : MonoBehaviour
         isDead = true;
         health = 0;
 
+        inputs.Disable();
+        if (gameOverPanel != null)
+        {
+            gameOverPanel.SetActive(true);
+        }
+
+        verticalVelocity = 0;
         Invoke("RestartScene", 2.0f);
     }
 
