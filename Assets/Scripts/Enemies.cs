@@ -25,11 +25,11 @@ public class Enemies : MonoBehaviour
         }
     }
 
-    private void OnControllerColliderHit(ControllerColliderHit hit)
+    private void OnCollisionEnter(Collision collision)
     {
-        if (hit.gameObject.CompareTag("Player"))
+        if (collision.gameObject.CompareTag("Player"))
         {
-            ThirdPersonController playerScript = hit.gameObject.GetComponent<ThirdPersonController>();
+            ThirdPersonController playerScript = collision.gameObject.GetComponent<ThirdPersonController>();
 
             if (playerScript != null)
             {
