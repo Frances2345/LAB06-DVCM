@@ -6,37 +6,41 @@ public class Enemies : MonoBehaviour
 
     private NavMeshAgent agent;
     private Transform player;
-    public float attack = 15;
+    public int damageAmount = 10;
 
 
     void Start()
     {
-        player = GameObject.FindGameObjectWithTag("Player").transform;
         agent = GetComponent<NavMeshAgent>();
+
+        GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
+        if (playerObj != null) player = playerObj.transform;
     }
 
     void Update()
     {
-        if (player != null && agent.enabled)
+        if (player != null && !agent.isStopped)
         {
             agent.SetDestination(player.position);
         }
     }
 
-    private void OnCollisionEnter(Collision collision)
+    private void OnControllerColliderHit(ControllerColliderHit hit)
     {
-
-
-        if (collision.gameObject.CompareTag("Player"))
+        if (hit.gameObject.CompareTag("Player"))
         {
-            PlayerController pScript = collision.gameObject.GetComponent<PlayerController>();
+            ThirdPersonController playerScript = hit.gameObject.GetComponent<ThirdPersonController>();
 
-            if (pScript != null)
+            if (playerScript != null)
             {
-                pScript.TakeDamage(attack);
+                playerScript.TakeDamage(damageAmount);
+                Die();
             }
-
-            Destroy(gameObject);
         }
+    }
+
+    public void Die()
+    {
+        Destroy(gameObject);
     }
 }

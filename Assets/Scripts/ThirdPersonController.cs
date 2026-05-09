@@ -39,6 +39,7 @@ public class ThirdPersonController : MonoBehaviour
     public float cameraTilt = 15;
     private bool isWallRunning;
 
+    [Header("Wall Jump")]
     public float wallJumpUpForce = 9f;
     public float wallJumpSideForce = 12f;
     public float wallJumpCooldown = 0.4f;
@@ -52,7 +53,6 @@ public class ThirdPersonController : MonoBehaviour
     [Header ("Impulse")]
     [SerializeField] private CinemachineImpulseSource hitSource;
     [SerializeField] private CinemachineImpulseSource source;
-
     [SerializeField] private Vector2 moveInput;
 
     private void Awake()
@@ -85,6 +85,8 @@ public class ThirdPersonController : MonoBehaviour
 
         CheckWallRun();
         OnMove();
+
+        UpdateAnimations();
     }
 
     public void OnMove()
@@ -134,10 +136,22 @@ public class ThirdPersonController : MonoBehaviour
         wallJumpVelocity = Vector3.Lerp(wallJumpVelocity, Vector3.zero, Time.deltaTime * 5f);
     }
 
+    private void UpdateAnimations()
+    {
+        if (animator == null) return;
+
+        float magnitude = new Vector3(controller.velocity.x, 0, controller.velocity.z).magnitude;
+        animator.SetFloat("Speed", magnitude);
+
+        animator.SetBool("Grounded", controller.isGrounded);
+
+    }
+
     private void OnJump(InputAction.CallbackContext context)
     {
         if (isWallRunning && canWallJump)
         {
+            if (animator != null) animator.SetTrigger("Jump");
             PerformWallJump();
             return;
         }
@@ -199,13 +213,17 @@ public class ThirdPersonController : MonoBehaviour
         bool hitRight = Physics.Raycast(transform.position, transform.right, out hit, rayLenght);
         bool hitLeft = Physics.Raycast(transform.position, -transform.right, out hit, rayLenght);
 
-        if ((hitRight || hitLeft) && hit.collider.CompareTag("Wall") && !controller.isGrounded)
+        if ((hitRight || hitLeft) && hit.collider != null && hit.collider.CompareTag("Wall") && !controller.isGrounded)
         {
             isWallRunning = true;
             wallNormal = hit.normal;
             impactPoint = hit.point;
 
-            characterCamera.Lens.Dutch = hitRight ? cameraTilt : -cameraTilt;
+            if (characterCamera != null)
+            {
+                characterCamera.Lens.Dutch = hitRight ? cameraTilt : -cameraTilt;
+            }
+
             crossResult = Vector3.Cross(wallNormal, transform.up);
 
             if (Vector3.Dot(crossResult, transform.forward) < 0)
@@ -216,7 +234,10 @@ public class ThirdPersonController : MonoBehaviour
         else
         {
             isWallRunning = false;
-            characterCamera.Lens.Dutch = 0;
+            if (characterCamera != null)
+            {
+                characterCamera.Lens.Dutch = 0;
+            }
         }
     }
 
@@ -243,6 +264,8 @@ public class ThirdPersonController : MonoBehaviour
         isDead = true;
         health = 0;
 
+        if (animator != null) animator.SetBool("Grounded", false);
+
         inputs.Disable();
         Invoke("RestartLevel", 2f);
     }
@@ -257,7 +280,6 @@ public class ThirdPersonController : MonoBehaviour
             Vector3 pushDir = (hit.transform.position - transform.position).normalized;
             pushDir.y = 0;
 
-            print(hit.gameObject.name);
             hit.rigidbody.AddForce(pushDir * pushForce, ForceMode.Impulse);
         }
     }
